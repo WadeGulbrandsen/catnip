@@ -1,0 +1,69 @@
+body {
+  font-family: 'Helvetica Neue', Verdana, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-width: 400px;
+  min-height: 300px;
+  background-image: url("../bg/nature-forest-waterfall-jungle.jpg");
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-position: center bottom;
+  background-size: cover;
+}
+
+h1, h2, h3 {
+  color: #000;
+}
+h1 {
+  font-size: 2.5em
+}
+
+h2 {
+  font-size: 2em
+}
+
+h3 {
+  text-align: center;
+  font-size: 1.5em
+}
+
+a {
+  text-decoration: none;
+  color: #09f;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.ui {
+  background-color: #000000;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #ffffff;
+  border-radius: 5px;
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.5);
+  border-width: 2px;
+}
+
+.options {
+  width: 350px;
+  margin: 0px auto;
+  padding: 10px;
+}
+
+.bottom {
+  position: fixed;
+  bottom: 10px;
+  width: 100%;
+}
+
+.splash {
+  position: absolute;
+  margin: auto;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 250px;
+  height: 200px;
+}
