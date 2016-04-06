@@ -11,7 +11,10 @@ To show or hide the options click the button in the bottom right corner.
 
 ### Version History
 
-#### Version 0.1.0 (initial release)
+#### Version 0.1.1 - April 6, 2016
+Refactoring the code to make the source more readable
+
+#### Version 0.1.0 - April 4, 2016 (initial release)
 Game is working.
 
 There are still some things I want to do:

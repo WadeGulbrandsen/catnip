@@ -6,38 +6,58 @@
 ;; -------------------------
 ;; State information
 
-;; Keep track the state of the options
-(def state (r/atom {:max 2 :speed 3 :showui true :bgimg ""}))
+;; options is:
+;; {:max Int :speed Int :showui Bool :bgimg String}
+;;    - :max    is the maxiumum number of birds that can be on screen at a time
+;;    - :speed  is a scaling factor for the spped the birds fly
+;;    - :showui is a flag for determining if the UI elements should be shown or not
+;;    - :bgimg  is the path to the background image
+(def options (r/atom {:max 2 :speed 3 :showui true :bgimg ""}))
 
 ;; Keep a timestamp of the last time the screen was rendered
 (def last-ts (r/atom nil))
 
-;; Keep track of all the birds
+;; birds is (vectorOf Bird)
+;; a Bird is:
+;; {:key Symbol :x Int :y Int :dx Int :dy Int :frame Int}
+;;    - :key   is a unique key for the bird
+;;    - :x     is the position of the bird on the X axis
+;;    - :y     is the position of the bird on the Y axis
+;;    - :dx    is the speed of the bird on the X axis
+;;    - :dy    is the speed of the bird on the Y axis
+;;    - :frame is the frame of the sprite that should be shown
 (def birds (r/atom []))
 
-;; The path for the image of the bird
-(def bird-img "sprite/blue-jay-sprite-sheet.png")
-(def bird-width 100)
-(def bird-height 100)
-(def bird-frames 8)
+;; bird-sprite is:
+;; {:img String :width Int :height Int :frames Int}
+;;    - :img    is the path to the the sprite sheet
+;;    - :width  is the width of the sprite
+;;    - :height is the height of the sprite
+;;    - :frames is the number of fames in the sprite sheet
+(def bird-sprite (r/atom {:img   "sprite/blue-jay-sprite-sheet.png"
+                          :width 100 :height 100 :frames 8}))
 
 ;; -------------------------
 ;; Reagent components
 
-(defn bird-sprite [bird]
+;; Bird -> Component
+;; produce a div positioned at the bird's x and y co-ordinates. Inside the div is an img showing the current frame
+;; of the bird sprite. The :key from the bird is put in the meta data of the div so that Reagent can tell which bird
+;; is which.
+(defn bird-component [bird]
   (let [frame (int (:frame bird))
-        offset-max (* bird-width (inc frame))
-        offset-min (* bird-width frame)
+        offset-max (* (:width @bird-sprite) (inc frame))
+        offset-min (* (:width @bird-sprite) frame)
         scale (if (neg? (:dx bird))
                 -1
                 1)
         move (if (neg? (:dx bird))
-               (- offset-max (* bird-width bird-frames))
+               (- offset-max (* (:width @bird-sprite) (:frames @bird-sprite)))
                (- offset-min))
         rotate (if (neg? (:dx bird))
                  (* 3 (:dy bird))
                  (* -3 (:dy bird)))]
-    ^{:key (:ts bird)}
+    ^{:key (:key bird)}
     [:div {:style {:position  "fixed"
                    :top       (:y bird)
                    :left      (:x bird)
@@ -45,30 +65,35 @@
                    }}
      [:img {:style {:position  "absolute"
                     :clip      (str "rect(0px, " (str offset-max) "px, "
-                                    (str bird-height) "px, " (str offset-min) "px)")
+                                    (str (:height @bird-sprite)) "px, " (str offset-min) "px)")
                     :transform (str "matrix(" (str scale) ", 0, 0, 1, " (str move) ", 0)")}
-            :src   bird-img}]]))
+            :src   (:img @bird-sprite)}]]))
 
-(defn slider [param value min max]
-  [:input {:type      "range" :value value :min min :max max
+;; Atom Key Int Int -> Component
+;; produce a slider style input that is at the current value of the atom's param and can range between min and max
+;; if the user adjusts the slider the atom's param will be updated to match the current value of the slider
+(defn slider [atom param min max]
+  [:input {:type      "range" :value (param (deref atom)) :min min :max max
            :style     {:width "90%"}
            :on-change (fn [e]
-                        (swap! state assoc param (.-target.value e)))}])
+                        (swap! atom assoc param (.-target.value e)))}])
 
+;; [] -> Component
+;; produce the UI for the program
 (defn catnip-ui []
-  [:div (map bird-sprite @birds)
+  [:div (doall (map bird-component @birds))
    [:div {:class "bottom"}
     [:button {:style    {:position "fixed"
                          :bottom   10
                          :right    10
                          :width    100}
               :class    "ui"
-              :on-click #(swap! state assoc :showui (not (:showui @state)))}
-     (if (:showui @state)
+              :on-click #(swap! options assoc :showui (not (:showui @options)))}
+     (if (:showui @options)
        "Hide options"
        "Show options")]
     [:table {:class "options ui"
-             :style {:visibility (if (:showui @state)
+             :style {:visibility (if (:showui @options)
                                    "visible"
                                    "hidden")}}
      [:tr
@@ -78,26 +103,27 @@
        "Press F11 for fullscreen"]]
      [:tr
       [:td "Birds: "]
-      [:td [slider :max (:max @state) 1 10]]
-      [:td (:max @state)]]
+      [:td [slider options :max (:max @options) 1 10]]
+      [:td (:max @options)]]
      [:tr
       [:td [:div "Speed: "]
-       [:td [slider :speed (:speed @state) 1 10]]
-       [:td (:speed @state)]]
-      ;[:div "Background: " (:bgimg @state) ""] ; Need to implement a file chooser for the background
+       [:td [slider options :speed (:speed @options) 1 10]]
+       [:td (:speed @options)]]
       ]]]]
   )
 
 ;; -------------------------
 ;; Functions
 
-;; Get the bounds that the birds can fly in
+;; [] -> {:top Int :left Int :bottom Int :right Int}
+;; produce a map of the bounds of the screen area with padding for the size of the bird sprite
 (defn get-bounds []
   (let [width (.-innerWidth js/window)
         height (.-innerHeight js/window)]
-    {:top (- bird-height) :left (- bird-width) :bottom height :right width}))
+    {:top (- (:height @bird-sprite)) :left (- (:width @bird-sprite)) :bottom height :right width}))
 
-;; determines if a bird is out of bounds
+;; Bird -> Bool
+;; produce true if the bird's position is outside of the bounds, otherwise false
 (defn out-of-bounds? [bird]
   (let [bounds (get-bounds)]
     (cond
@@ -107,63 +133,61 @@
       (> (:y bird) (:bottom bounds)) true
       :else false)))
 
-;; Sleep
-(defn sleep [msec]
-  (let [deadline (+ msec (.getTime (js/Date.)))]
-    (while (> deadline (.getTime (js/Date.))))))
-
-;; Get the body of the DOM
-(defn get-body []
-  (.-body js/document))
-
-;; Get the DIV with id "app" in the DOM
-(defn get-app []
-  (.getElementById js/document "app"))
-
-;; Sets the body's background image
+;; String -> []
+;; Updates the bgimg of the options and sets the body's background image to that image
 (defn set-bg! [imgsrc]
   (do
-    (swap! state assoc :bgimg imgsrc)
-    (set! (.-backgroundImage (.-style (get-body))) (str "url(\"" imgsrc "\")"))))
+    (swap! options assoc :bgimg imgsrc)
+    (set! (.-backgroundImage (.-style (.-body js/document))) (str "url(\"" imgsrc "\")"))))
 
-;; Update a bird's position
+;; Int Bird -> Bird
+;; produce a new bird with a new position and frame number based on the old bird and the delta of time since the last
+;; update
 (defn update-bird [delta bird]
-  (let [speed (/ (* delta (:speed @state)) 20)]
-  {:x     (+ (:x bird) (* speed (:dx bird)))
-   :y     (+ (:y bird) (* speed (:dy bird)))
-   :dx    (:dx bird)
-   :dy    (:dy bird)
-   :frame (rem (+ (/ delta 60) (:frame bird)) bird-frames)
-   :ts    (:ts bird)}))
+  (let [speed (/ (* delta (:speed @options)) 20)]
+    {:x     (+ (:x bird) (* speed (:dx bird)))
+     :y     (+ (:y bird) (* speed (:dy bird)))
+     :dx    (:dx bird)
+     :dy    (:dy bird)
+     :frame (rem (+ (/ delta 60) (:frame bird)) (:frames @bird-sprite))
+     :key   (:key bird)}))
 
-;; Move the birds to their next position
+;; Int -> []
+;; update the birds atom by updating them all based on the delta of time passed since the last update
 (defn next-birds! [delta]
   (reset! birds (map #(update-bird delta %) @birds)))
 
-;; Create a new bird
+;; [] -> Bird
+;; Create a new bird with a random speed, y position, and frame number. The bird's x postion will be at the right or
+;; left edge of the screen depending on it's speed on the x axis.
 (defn new-bird []
   (let [bounds (get-bounds)
         dx (* (rand-nth [1 -1]) (inc (rand-int 3)))
         dy (- (rand-int 7) 3)
         x (if (neg? dx) (:right bounds) (:left bounds))
-        y (- (rand-int (:bottom bounds)) bird-height)
-        f (rand-int bird-frames)]
-    {:x x :y y :dx dx :dy dy :frame f :ts (.getTime (js/Date.))}))
+        y (- (rand-int (:bottom bounds)) (:height @bird-sprite))
+        f (rand-int (:frames @bird-sprite))]
+    {:key (gensym "Bird") :x x :y y :dx dx :dy dy :frame f}))
 
-;; Add new birds if the current number of birds is less than the max number of birds
+;; [] -> []
+;; add new birds until the number of birds is at the max number of birds in options
 (defn add-birds! []
-  (let [x (- (:max @state) (count @birds))]
-    (cond (= x 1) (reset! birds (conj @birds (new-bird)))
-          (> x 1) (do (reset! birds (conj @birds (new-bird)))
-                      ;need to wait a ms before makeing the next bird for ts to be unique
-                      (sleep 1)
-                      (recur)))))
+  (if (> (:max @options) (count @birds))
+    (do (reset! birds (conj @birds (new-bird)))
+        (recur))))
 
+;; [] -> []
 ;; Remove birds that have gone off screen
 (defn remove-out-of-bounds! []
   (reset! birds (remove out-of-bounds? @birds)))
 
-;; Update the scene
+;; Int -> []
+;; Update the state of the program by:
+;;   1. moving the current birds
+;;   2. removing birds that have gone out of bounds
+;;   3. adding new birds to the program
+;;   4. resetting the timestamp
+;; After updating the state it will call for the next update
 (defn update! [ts]
   (next-birds! (- ts (or @last-ts ts)))
   (remove-out-of-bounds!)
@@ -174,13 +198,16 @@
 ;; -------------------------
 ;; Initialize app
 
+;; [] -> []
+;; Sets up the initial state of the program and then kicks off the animation loop
 (defn mount-root []
   (do
     (set-bg! "bg/nature-forest-waterfall-jungle.jpg")
     (add-birds!)
-    (r/render [catnip-ui] (get-app))
-    (. js/window (requestAnimationFrame update!))
-    ))
+    (r/render [catnip-ui] (.getElementById js/document "app"))
+    (. js/window (requestAnimationFrame update!))))
 
+;; [] -> []
+;; This is inistial entry point when called by the web browser and just calls mount-root
 (defn init! []
   (mount-root))
