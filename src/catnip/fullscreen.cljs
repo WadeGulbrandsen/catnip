@@ -1,4 +1,6 @@
 (ns catnip.fullscreen)
+;; Code for these function is from asciinema-player
+;; Source: https://github.com/asciinema/asciinema-player
 
 (defn document-prop [name]
   (aget js/document name))

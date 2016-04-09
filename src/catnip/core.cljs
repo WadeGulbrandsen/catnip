@@ -8,15 +8,16 @@
 ;; State information
 
 ;; options is:
-;; {:max Int :speed Int :showui Bool :bgimg String :bgloaded Bool}
+;; {:max Int :speed Int :showui Bool :bgimg String :bgloaded Bool :running Bool}
 ;;    - :max      is the maxiumum number of birds that can be on screen at a time
 ;;    - :speed    is a scaling factor for the spped the birds fly
 ;;    - :showui   is a flag for determining if the UI elements should be shown or not
 ;;    - :bgimg    is the path to the background image
 ;;    - :bgloaded lets the program know if the browser has finished loading the bgimg yet
+;;    - :running  lets the program know if the animation should be running or not
 (defonce options (r/atom {:max      2 :speed 3 :showui true
                           :bgimg    "bg/nature-forest-waterfall-jungle.jpg"
-                          :bgloaded false}))
+                          :bgloaded false :running false}))
 
 ;; Keep a timestamp of the last time the screen was rendered
 (defonce last-ts (r/atom nil))
@@ -43,104 +44,13 @@
                               :width 100 :height 100 :frames 8 :loaded false}))
 
 ;; -------------------------
-;; Reagent components
-
-;; [] -> Component
-;; produce the loading box at the center of the screen
-(defn splash-ui []
-  [:div.splash
-   [:div.ui "Catnip"
-    [:div "Loading"
-     [:img {:src   (:img @bird-sprite)
-            :style {:display "none"}
-            :load  (swap! bird-sprite assoc :loaded true)}]
-     [:img {:src   (:bgimg @options)
-            :style {:display "none"}
-            :load  (swap! options assoc :bgloaded true)}]]]])
-
-;; Bird -> Component
-;; produce a div positioned at the bird's x and y co-ordinates. Inside the div is an img showing the current frame
-;; of the bird sprite. The :key from the bird is put in the meta data of the div so that Reagent can tell which bird
-;; is which.
-(defn bird-component [bird]
-  (let [frame (int (:frame bird))
-        offset-max (* (:width @bird-sprite) (inc frame))
-        offset-min (* (:width @bird-sprite) frame)
-        scale (if (neg? (:dx bird))
-                -1
-                1)
-        move (if (neg? (:dx bird))
-               (- offset-max (* (:width @bird-sprite) (:frames @bird-sprite)))
-               (- offset-min))
-        rotate (if (neg? (:dx bird))
-                 (* 3 (:dy bird))
-                 (* -3 (:dy bird)))]
-    ^{:key (:key bird)}
-    [:div {:style {:position  "fixed"
-                   :top       (:y bird)
-                   :left      (:x bird)
-                   :transform (str "rotate(" (str rotate) "deg)")}}
-
-     [:img {:style {:position  "absolute"
-                    :clip      (str "rect(0px, " (str offset-max) "px, "
-                                    (str (:height @bird-sprite)) "px, " (str offset-min) "px)")
-                    :transform (str "matrix(" (str scale) ", 0, 0, 1, " (str move) ", 0)")}
-            :src   (:img @bird-sprite)}]]))
-
-;; Atom Key Int Int -> Component
-;; produce a slider style input that is at the current value of the atom's param and can range between min and max
-;; if the user adjusts the slider the atom's param will be updated to match the current value of the slider
-(defn slider [atom param min max]
-  [:input {:type      "range" :value (param (deref atom)) :min min :max max
-           :style     {:width "90%"}
-           :on-change (fn [e]
-                        (swap! atom assoc param (.-target.value e)))}])
-
-;; [] -> Component
-;; produce the UI for the program
-(defn catnip-ui []
-  [:div.bg {:style {:backgroundImage (str "url(\"" (:bgimg @options) "\")")}}
-   [:div (doall (map bird-component @birds))]
-   [:div.bottom
-    [:button.ui {:style    {:position "fixed"
-                            :bottom   10
-                            :left    10
-                            :width    100}
-                 :on-click #(swap! options assoc :showui (not (:showui @options)))}
-     (if (:showui @options)
-       "Hide options"
-       "Show options")]
-    [:button.ui {:style    {:position "fixed"
-                            :bottom   10
-                            :right     10
-                            :width    100}
-                 :on-click (fn [e]
-                             (.preventDefault e)
-                             (fullscreen/toggle (-> e .-currentTarget .-parentNode .-parentNode)))}
-     (if (fullscreen/is-fullscreen?)
-       "Exit fullscreen"
-       "Go fullscreen")]
-    [:table.options.ui {
-                        :style {:visibility (if (:showui @options)
-                                              "visible"
-                                              "hidden")}}
-     [:tr
-      [:td {:col-span 3
-            :style    {:text-align "center"}}
-       "Options"]]
-     [:tr
-      [:td "Birds: "]
-      [:td [slider options :max (:max @options) 1 10]]
-      [:td (:max @options)]]
-     [:tr
-      [:td [:div "Speed: "]
-       [:td [slider options :speed (:speed @options) 1 10]]
-       [:td (:speed @options)]]]]]])
-
-
-
-;; -------------------------
 ;; Functions
+
+;; Int -> []
+;; pauses the program for the given number of milliseconds, useful for testing
+(defn sleep [msec]
+  (let [deadline (+ msec (.getTime (js/Date.)))]
+    (while (> deadline (.getTime (js/Date.))))))
 
 ;; [] -> {:top Int :left Int :bottom Int :right Int}
 ;; produce a map of the bounds of the screen area with padding for the size of the bird sprite
@@ -159,18 +69,6 @@
       (< (:y bird) (:top bounds)) true
       (> (:y bird) (:bottom bounds)) true
       :else false)))
-
-;;; [] -> []
-;;; Updates the background image form the one stored in options
-(defn apply-bg []
-  (set! (.-backgroundImage (.-style (.-body js/document))) (str "url(\"" (:bgimg @options) "\")")))
-
-;;; String -> []
-;;; Updates the bgimg of the options and sets the body's background image to that image
-(defn set-bg! [imgsrc]
-  (do
-    (swap! options assoc :bgimg imgsrc)
-    (apply-bg)))
 
 ;; Int Bird -> Bird
 ;; produce a new bird with a new position and frame number based on the old bird and the delta of time since the last
@@ -221,11 +119,186 @@
 ;;   4. resetting the timestamp
 ;; After updating the state it will call for the next update
 (defn update! [ts]
-  (next-birds! (- ts (or @last-ts ts)))
-  (remove-out-of-bounds!)
-  (add-birds!)
-  (reset! last-ts ts)
-  (. js/window (requestAnimationFrame update!)))
+  (if (:running @options)
+    (do (next-birds! (- ts (or @last-ts ts)))
+        (remove-out-of-bounds!)
+        (add-birds!)
+        (reset! last-ts ts)
+        (. js/window (requestAnimationFrame update!)))))
+
+;; -------------------------
+;; Reagent components
+
+;; [] -> Component
+;; produce the loading box at the center of the screen
+(defn splash-ui []
+  [:div
+   [:div.splash.ui
+    [:h3 "Catnip"]
+    [:div {:style {:text-align "center"
+                   :font-size  "x-large"}}
+     "Loading " [:i.fa.fa-spinner.fa-spin]
+     [:img {:src   (:img @bird-sprite)
+            :style {:display "none"}
+            :load  (swap! bird-sprite assoc :loaded true)}]
+     [:img {:src   (:bgimg @options)
+            :style {:display "none"}
+            :load  (swap! options assoc :bgloaded true)}]]]])
+
+;; Bird -> Component
+;; produce a div positioned at the bird's x and y co-ordinates. Inside the div is an img showing the current frame
+;; of the bird sprite. The :key from the bird is put in the meta data of the div so that Reagent can tell which bird
+;; is which.
+(defn bird-component [bird]
+  (let [frame (int (:frame bird))
+        offset-max (* (:width @bird-sprite) (inc frame))
+        offset-min (* (:width @bird-sprite) frame)
+        scale (if (neg? (:dx bird))
+                -1
+                1)
+        move (if (neg? (:dx bird))
+               (- offset-max (* (:width @bird-sprite) (:frames @bird-sprite)))
+               (- offset-min))
+        rotate (if (neg? (:dx bird))
+                 (* 3 (:dy bird))
+                 (* -3 (:dy bird)))]
+    ^{:key (:key bird)}
+    [:div {:style {:position  "fixed"
+                   :top       (:y bird)
+                   :left      (:x bird)
+                   :transform (str "rotate(" (str rotate) "deg)")}}
+
+     [:img {:style {:position  "absolute"
+                    :clip      (str "rect(0px, " (str offset-max) "px, "
+                                    (str (:height @bird-sprite)) "px, " (str offset-min) "px)")
+                    :transform (str "matrix(" (str scale) ", 0, 0, 1, " (str move) ", 0)")}
+            :src   (:img @bird-sprite)}]]))
+
+;; Atom Key Int Int -> Component
+;; produce a slider style input that is at the current value of the atom's param and can range between min and max
+;; if the user adjusts the slider the atom's param will be updated to match the current value of the slider
+(defn slider [atom param min max]
+  [:input {:type      "range" :value (param (deref atom)) :min min :max max
+           :style     {:width "90%"}
+           :on-change (fn [e]
+                        (swap! atom assoc param (.-target.value e)))}])
+
+;; [] -> Component
+;; produce the options button
+(defn options-button []
+  [:div.tooltip.toolbarbutton
+   [:i.fa.fa-cogs
+    {:on-click #(swap! options assoc :showui (not (:showui @options)))}]
+   [:span.tooltiptext.left
+    (if (:showui @options)
+      "Hide options"
+      "Show options")
+    ]])
+
+;; [] -> Component
+;; produce the fullscreen button
+(defn fullscreen-button []
+  [:div.tooltip.toolbarbutton
+   [:i.fa.fa-arrows-alt
+    {:on-click (fn [e]
+                 (.preventDefault e)
+                 (fullscreen/toggle (.getElementById js/document "app")))}]
+   [:span.tooltiptext.right
+    (if (fullscreen/is-fullscreen?)
+      "Exit fullscreen"
+      "Fullscreen")
+    ]])
+
+;; [] -> Component
+;; produce a button the will pause or unpause the animation
+(defn play-pause-button []
+  [:div.tooltip.toolbarbutton
+   (if (:running @options)
+     [:i.fa.fa-pause.fa-fw
+      {:on-click (fn [e]
+                   (.preventDefault e)
+                   (swap! options assoc :running false))}]
+     [:i.fa.fa-play.fa-fw
+      {:on-click (fn [e]
+                   (.preventDefault e)
+                   (swap! options assoc :running true)
+                   (. js/window (requestAnimationFrame update!)))}])
+   [:span.tooltiptext.left
+    (if (:running @options)
+      "Pause"
+      "Play")]])
+
+;; [] -> Component
+;; produce a button that will start or stop the animation
+(defn start-stop-button []
+  [:button.ui {:style {:padding   "5px"
+                       :width     "90px"
+                       :font-size "large"}}
+   (if (:running @options)
+     [:span
+      {:on-click (fn [e]
+                   (.preventDefault e)
+                   (swap! options assoc :running false)
+                   (reset! birds []))}
+      [:i.fa.fa-stop] " Stop"]
+     [:span
+      {:on-click (fn [e]
+                   (.preventDefault e)
+                   (swap! options assoc :showui false)
+                   (swap! options assoc :running true)
+                   (. js/window (requestAnimationFrame update!)))}
+      [:i.fa.fa-play] " Start"])])
+
+;; [] -> Component
+(defn close-button []
+  [:i.fa.fa-times {:on-click (fn [e]
+                               (.preventDefault e)
+                               (swap! options assoc :showui false))
+                   :style    {:visibility (if (and (:running @options)
+                                                   (:showui @options))
+                                            "visible"
+                                            "hidden")
+                              :font-size  "large"}}])
+
+;; [] -> Component
+;; produce the UI for the program
+(defn catnip-ui []
+  [:div.bg {:style {:backgroundImage (str "url(\"" (:bgimg @options) "\")")}}
+   [:div (doall (map bird-component @birds))]
+   [:div.toolbar
+    (play-pause-button)
+    (options-button)
+    [:span {:style {:position "absolute"
+                    :right    0}} (fullscreen-button)]]
+   [:table.options.ui {
+                       :style {:visibility (if (:showui @options)
+                                             "visible"
+                                             "hidden")
+                               :opacity    (if (:showui @options)
+                                             1
+                                             0)}}
+    [:tr
+     [:td {:col-span 3}
+      [:i.fa.fa-cogs] " Options"
+      [:span {:style {:position "absolute"
+                      :right    "3px"
+                      :top      "1px"}}
+       (close-button)]]]
+    [:tr
+     [:td "Birds: "]
+     [:td [slider options :max 1 10]]
+     [:td (:max @options)]]
+    [:tr
+     [:td [:div "Speed: "]
+      [:td [slider options :speed 1 10]]
+      [:td (:speed @options)]]]
+    [:tr
+     [:td {:col-span 3
+           :style    {:text-align "center"}}
+      (start-stop-button)]]]])
+
+;; -------------------------
+;; Initialize app
 
 ;; [] -> []
 ;; Shows the loading box until the images are loaded
@@ -236,13 +309,8 @@
 ;;   4. start the animation
 (defn load-images []
   (if (and (:bgloaded @options) (:loaded @bird-sprite))
-    (do (add-birds!)
-        (r/render [catnip-ui] (.getElementById js/document "app"))
-        (. js/window (requestAnimationFrame update!)))
+    (r/render [catnip-ui] (.getElementById js/document "app"))
     (js/setTimeout load-images 16)))
-
-;; -------------------------
-;; Initialize app
 
 ;; [] -> []
 ;; Sets up the initial state of the program and then kicks off the animation loop
