@@ -27,6 +27,10 @@ that they move
 - [ ] Create functions to start/stop/pause the animation
 - [ ] Create functions to show/hide the options
 - [ ] Move the sprite handling to its own namespace
+- [ ] Have the birds change direction once in a while
+- [ ] Have different paths that the birds can take while moving
+- [ ] Sound effects
+- [ ] Add interaction with the birds so that cats can whack them on a touchscreen
 
 ### Version History
 
