@@ -2,7 +2,8 @@
   (:require [reagent.core :as r :refer [atom]]
             [reagent.session :as session]
             [secretary.core :as secretary :include-macros true]
-            [catnip.fullscreen :as fullscreen]))
+            [catnip.fullscreen :as fullscreen]
+            [catnip.sprite :as sprite]))
 
 ;; -------------------------
 ;; State information
@@ -33,15 +34,23 @@
 ;;    - :frame is the frame of the sprite that should be shown
 (defonce birds (r/atom []))
 
-;; bird-sprite is:
+;; bird-sheet is:
 ;; {:img String :width Int :height Int :frames Int :loaded Bool}
+;; interp. a sprite sheet
 ;;    - :img    is the path to the the sprite sheet
 ;;    - :width  is the width of the sprite
 ;;    - :height is the height of the sprite
 ;;    - :frames is the number of fames in the sprite sheet
 ;;    - :loaded lets the program know if the img is loaded yet
-(defonce bird-sprite (r/atom {:img   "sprite/blue-jay-sprite-sheet.png"
-                              :width 100 :height 100 :frames 8 :loaded false}))
+(defonce bird-sheet (r/atom {:img   "sprite/blue-jay-sprite-sheet.png"
+                             :width 100 :height 100 :cols 8 :rows 1 :loaded false}))
+
+;; bird-sprites is:
+;; {:left [Component] :right [Component]}
+;; interp. the img components that show each frame of animation
+;;     - :left  is a vector containing all the left facing frames
+;;     - :right is a vector containing all the right facing frames
+(defonce bird-sprites (r/atom {}))
 
 ;; -------------------------
 ;; Functions
@@ -57,7 +66,7 @@
 (defn get-bounds []
   (let [width (.-innerWidth js/window)
         height (.-innerHeight js/window)]
-    {:top (- (:height @bird-sprite)) :left (- (:width @bird-sprite)) :bottom height :right width}))
+    {:top (- (:height @bird-sheet)) :left (- (:width @bird-sheet)) :bottom height :right width}))
 
 ;; Bird -> Bool
 ;; produce true if the bird's position is outside of the bounds, otherwise false
@@ -79,7 +88,7 @@
      :y     (+ (:y bird) (* speed (:dy bird)))
      :dx    (:dx bird)
      :dy    (:dy bird)
-     :frame (rem (+ (/ delta 60) (:frame bird)) (:frames @bird-sprite))
+     :frame (rem (+ (/ delta 60) (:frame bird)) (count (:left @bird-sprites)))
      :key   (:key bird)}))
 
 ;; Int -> []
@@ -95,8 +104,8 @@
         dx (* (rand-nth [1 -1]) (inc (rand-int 3)))
         dy (- (rand-int 7) 3)
         x (if (neg? dx) (:right bounds) (:left bounds))
-        y (- (rand-int (:bottom bounds)) (:height @bird-sprite))
-        f (rand-int (:frames @bird-sprite))]
+        y (- (rand-int (:bottom bounds)) (:height @bird-sheet))
+        f (rand-int (count (:left @bird-sprites)))]
     {:key (gensym "Bird") :x x :y y :dx dx :dy dy :frame f}))
 
 ;; [] -> []
@@ -138,9 +147,9 @@
     [:div {:style {:text-align "center"
                    :font-size  "x-large"}}
      "Loading " [:i.fa.fa-spinner.fa-spin]
-     [:img {:src   (:img @bird-sprite)
+     [:img {:src   (:img @bird-sheet)
             :style {:display "none"}
-            :load  (swap! bird-sprite assoc :loaded true)}]
+            :load  (swap! bird-sheet assoc :loaded true)}]
      [:img {:src   (:bgimg @options)
             :style {:display "none"}
             :load  (swap! options assoc :bgloaded true)}]]]])
@@ -149,30 +158,24 @@
 ;; produce a div positioned at the bird's x and y co-ordinates. Inside the div is an img showing the current frame
 ;; of the bird sprite. The :key from the bird is put in the meta data of the div so that Reagent can tell which bird
 ;; is which.
+
 (defn bird-component [bird]
-  (let [frame (int (:frame bird))
-        offset-max (* (:width @bird-sprite) (inc frame))
-        offset-min (* (:width @bird-sprite) frame)
-        scale (if (neg? (:dx bird))
-                -1
-                1)
-        move (if (neg? (:dx bird))
-               (- offset-max (* (:width @bird-sprite) (:frames @bird-sprite)))
-               (- offset-min))
-        rotate (if (neg? (:dx bird))
+  (let [rotate (if (neg? (:dx bird))
                  (* 3 (:dy bird))
-                 (* -3 (:dy bird)))]
-    ^{:key (:key bird)}
+                 (* -3 (:dy bird)))
+        facing (if (neg? (:dx bird))
+                 :left
+                 :right)]
+    ^{:key {:key bird}}
     [:div {:style {:position  "fixed"
+                   ;; Uncomment border to see the bounding box for each bird
+                   ;:border    "2px solid red"
+                   :width     (:width @bird-sheet)
+                   :height    (:height @bird-sheet)
                    :top       (:y bird)
                    :left      (:x bird)
-                   :transform (str "rotate(" (str rotate) "deg)")}}
-
-     [:img {:style {:position  "absolute"
-                    :clip      (str "rect(0px, " (str offset-max) "px, "
-                                    (str (:height @bird-sprite)) "px, " (str offset-min) "px)")
-                    :transform (str "matrix(" (str scale) ", 0, 0, 1, " (str move) ", 0)")}
-            :src   (:img @bird-sprite)}]]))
+                   :transform (str "rotate(" rotate "deg)")}}
+     (get (facing @bird-sprites) (:frame bird))]))
 
 ;; Atom Key Int Int -> Component
 ;; produce a slider style input that is at the current value of the atom's param and can range between min and max
@@ -308,7 +311,7 @@
 ;;   3. render the normal ui
 ;;   4. start the animation
 (defn load-images []
-  (if (and (:bgloaded @options) (:loaded @bird-sprite))
+  (if (and (:bgloaded @options) (:loaded @bird-sheet))
     (r/render [catnip-ui] (.getElementById js/document "app"))
     (js/setTimeout load-images 16)))
 
@@ -317,6 +320,18 @@
 (defn mount-root []
   (do
     (r/render [splash-ui] (.getElementById js/document "app"))
+    (swap! bird-sprites assoc :left (sprite/get-sprites (:img @bird-sheet)
+                                                          (:width @bird-sheet)
+                                                          (:height @bird-sheet)
+                                                          (:cols @bird-sheet)
+                                                          (:rows @bird-sheet)
+                                                          :horz))
+    (swap! bird-sprites assoc :right (sprite/get-sprites (:img @bird-sheet)
+                                                        (:width @bird-sheet)
+                                                        (:height @bird-sheet)
+                                                        (:cols @bird-sheet)
+                                                        (:rows @bird-sheet)
+                                                        :none))
     (load-images)))
 
 

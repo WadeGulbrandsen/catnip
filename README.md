@@ -26,13 +26,18 @@ that they move
 - [ ] Add a countdown to start the program and hide the options
 - [ ] Create functions to start/stop/pause the animation
 - [ ] Create functions to show/hide the options
-- [ ] Move the sprite handling to its own namespace
+- [x] Move the sprite handling to its own namespace
 - [ ] Have the birds change direction once in a while
 - [ ] Have different paths that the birds can take while moving
 - [ ] Sound effects
 - [ ] Add interaction with the birds so that cats can whack them on a touchscreen
 
 ### Version History
+
+#### Version 0.2.1 - April 19, 2016
+- Moved the sprite handling to a separate namespace
+  - This is using the DOM instead of a canvas so that it fits in better with React.js/Reagent
+- Put all the possible sprite components into an atom on load so they don't need to be calculated each frame
 
 #### Version 0.2.0 - April 9, 2016
 - Created a toolbar
