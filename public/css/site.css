@@ -1,0 +1,156 @@
+body {
+  font-family: 'Helvetica Neue', Verdana, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-width: 400px;
+  min-height: 300px;
+  background-color: LightSteelBlue;
+}
+
+.bg {
+  position: fixed;
+  height: 100%;
+  width: 100%;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-position: center bottom;
+  background-size: cover;
+}
+
+h1 {
+  font-size: 2.5em
+}
+
+h2 {
+  font-size: 2em
+}
+
+h3 {
+  text-align: center;
+  font-size: 1.5em
+}
+
+a {
+  text-decoration: none;
+  color: #09f;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.tooltip {
+  position: relative;
+  display: inline-block;
+}
+
+.tooltip .tooltiptext {
+  opacity: 0;
+  width: 120px;
+  background-color: white;
+  background-color: rgba(255, 255, 255, 0.8);
+  color: black;
+  border-radius: 6px;
+  text-align: center;
+  font-size: medium;
+  padding: 5px 0;
+  position: absolute;
+  z-index: 1;
+  bottom: 100%;
+  left: 50%;
+  margin-left: -60px;
+  transition: opacity 2s linear 0.5s;
+}
+
+.tooltip .left {
+  margin-left: -20px;
+}
+
+.tooltip .right {
+  margin-left: -100px;
+}
+
+.tooltip .tooltiptext::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -10px;
+  border-width: 10px;
+  border-style: solid;
+  border-color: white transparent transparent transparent;
+  opacity: 0.8;
+}
+
+.tooltip .left::after {
+  margin-left: -50px;
+}
+
+.tooltip .right::after {
+  margin-left: 30px;
+}
+
+.tooltip:hover .tooltiptext {
+  opacity: 1;
+}
+
+.ui {
+  background-color: #000000;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #ffffff;
+  border-radius: 5px;
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.5);
+  border-width: 2px;
+}
+
+.options, .splash {
+  position: absolute;
+  margin: auto;
+  right: 0;
+  left: 0;
+  width: 350px;
+  padding: 10px;
+  transition: opacity 1s, visibility 1s;
+}
+
+.options {
+  bottom: 60px;
+}
+
+.splash {
+  top: 0;
+  bottom: 0;
+  height: 150px;
+}
+
+.toolbar {
+  background-color: black;
+  background-color: rgba(0, 0, 0, 0.8);
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8), black);
+  position: fixed;
+  bottom: 0px;
+  width: 100%;
+  opacity: 0;
+  transition: opacity 1s linear;
+}
+
+.toolbar:hover {
+  opacity: 1;
+}
+
+.toolbarbutton {
+  font-size: xx-large;
+  color: white;
+  padding: 10px;
+  opacity: 0.8;
+  transition: opacity 0.5s, text-shadow 0.5s;
+}
+
+.toolbarbutton:hover {
+  opacity: 1;
+  text-shadow: 1px 0px 20px cyan;
+}
